@@ -14,8 +14,9 @@ async def create_user(
     user_data: UserRegister,
     session: AsyncSession = Depends(get_db),
 ):
+    dao = UserDAO(session)
     email = user_data.email.lower()
-    user = await UserDAO(session).find_one_or_none(email=email)
+    user = await dao.find_one_or_none(email=email)
 
     if user:
         raise HTTPException(
@@ -26,7 +27,6 @@ async def create_user(
     user_dict = user_data.model_dump(exclude=['password'])
     user_dict["hashed_password"] = get_password_hash(user_data.password)
 
-    dao = UserDAO(session)
     try:
         new_user = await dao.add(**user_dict)
     except IntegrityError:
