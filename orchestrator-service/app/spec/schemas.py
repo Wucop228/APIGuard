@@ -25,3 +25,9 @@ class SpecDetailResponse(BaseModel):
     parsed_data: dict | None = None
     results: list[SpecResultResponse] = []
     error_message: str | None = None
+
+class AgentCallbackRequest(BaseModel):
+    agent_type: str
+    status: str
+    content: dict | None = None
+    error: str | None = None

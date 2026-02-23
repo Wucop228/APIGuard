@@ -8,6 +8,7 @@ from app.spec.schemas import (
     SpecStatusResponse,
     SpecDetailResponse,
     SpecResultResponse,
+    AgentCallbackRequest,
 )
 from app.spec.service import SpecService, SpecServiceError
 
@@ -95,3 +96,24 @@ async def get_my_specs(
         )
         for s in specs
     ]
+
+@router.post("/{spec_id}/callback", status_code=status.HTTP_200_OK)
+async def agent_callback(
+    spec_id: str,
+    body: AgentCallbackRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    service = SpecService(session)
+
+    try:
+        await service.handle_callback(
+            spec_id=spec_id,
+            agent_type=body.agent_type,
+            status=body.status,
+            content=body.content,
+            error=body.error,
+        )
+    except SpecServiceError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    return {"message": "ok"}

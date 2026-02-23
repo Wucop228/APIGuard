@@ -1,12 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.spec.dao import SpecDAO
+from app.spec.dao import SpecDAO, SpecResultDAO
 from app.spec.models import Spec
 from app.spec.enums import SpecStatus
 from app.spec.validator import parse_raw_content, validate_openapi, SpecValidationError
 from app.spec.parser import parse_openapi
 from app.broker.publisher import publish_task
-from app.broker.constants import ROUTING_KEY_ANALYZE
+from app.broker.constants import ROUTING_KEY_ANALYZE, ROUTING_KEY_GENERATE, ROUTING_KEY_REVIEW
 
 
 class SpecServiceError(Exception):
@@ -35,7 +35,7 @@ class SpecService:
             user_id=user_id,
             original_content=raw_content,
             parsed_data=parsed_data,
-            status=SpecStatus.PENDING,
+            status=SpecStatus.ANALYZING,
         )
 
         await publish_task(
@@ -47,6 +47,78 @@ class SpecService:
         )
 
         return spec
+
+    async def handle_callback(
+        self,
+        spec_id: str,
+        agent_type: str,
+        status: str,
+        content: dict | None = None,
+        error: str | None = None,
+    ) -> None:
+        spec = await self.dao.find_one_or_none(id=spec_id)
+        if not spec:
+            raise SpecServiceError("Спецификация не найдена")
+
+        if status == "failed":
+            await self.dao.update_by_filter(
+                Spec.id == spec_id,
+                status=SpecStatus.FAILED,
+                error_message=error or "Unknown error",
+            )
+            print(f"Спецификация {spec_id}: {agent_type} ошибка {error}")
+            return
+
+        if status == "completed" and content is not None:
+            result_dao = SpecResultDAO(self.session)
+            await result_dao.add(
+                spec_id=spec_id,
+                agent_type=agent_type,
+                content=content,
+            )
+
+            if agent_type == "analyzer":
+                await self.dao.update_by_filter(
+                    Spec.id == spec_id,
+                    status=SpecStatus.GENERATING,
+                )
+
+                await publish_task(
+                    routing_key=ROUTING_KEY_GENERATE,
+                    payload={
+                        "spec_id": spec_id,
+                        "analysis": content,
+                    },
+                )
+                print(f"Спецификация {spec_id}: analyzer выполнил => отправил в generator")
+
+            elif agent_type == "generator":
+                await self.dao.update_by_filter(
+                    Spec.id == spec_id,
+                    status=SpecStatus.REVIEWING,
+                )
+
+                analysis_result = await result_dao.find_one_or_none(
+                    spec_id=spec_id,
+                    agent_type="analyzer",
+                )
+
+                await publish_task(
+                    routing_key=ROUTING_KEY_REVIEW,
+                    payload={
+                        "spec_id": spec_id,
+                        "analysis": analysis_result.content if analysis_result else {},
+                        "generated_tests": content,
+                    },
+                )
+                print(f"Спецификация {spec_id}: generator выполнил => отправил в reviewer")
+
+            elif agent_type == "reviewer":
+                await self.dao.update_by_filter(
+                    Spec.id == spec_id,
+                    status=SpecStatus.DONE,
+                )
+                print(f"Спецификация {spec_id}: reviewer выполнил")
 
     async def get_status(self, spec_id: str, user_id: str) -> Spec:
         spec = await self.dao.find_one_or_none(id=spec_id)
