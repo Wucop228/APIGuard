@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.http_client import get_http_client
 from app.dependencies.auth import get_current_user
+from app.schemas.spec import SpecUploadRequest
 
 router = APIRouter(prefix="/spec", tags=["spec"])
 
@@ -51,7 +52,7 @@ async def _proxy_to_orchestrator(
 
 
 @router.post("/upload")
-async def upload_spec(request: Request):
+async def upload_spec(request: Request, body: SpecUploadRequest):
     return await _proxy_to_orchestrator(request, "/spec/upload")
 
 

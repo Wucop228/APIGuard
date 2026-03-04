@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.http_client import get_http_client
+from app.schemas.auth import AuthUser, UserRegister
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,12 +56,12 @@ async def _proxy_to_auth(
 
 
 @router.post("/register")
-async def register(request: Request):
+async def register(request: Request, body: UserRegister):
     return await _proxy_to_auth(request, "/user/register")
 
 
 @router.post("/login")
-async def login(request: Request):
+async def login(request: Request, body: AuthUser):
     return await _proxy_to_auth(request, "/auth/login")
 
 
