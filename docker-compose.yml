@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: apiguard_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-auth_db}
+      ORCHESTRATOR_DB_NAME: ${ORCHESTRATOR_DB_NAME:-orchestrator_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: apiguard_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  auth-service:
+    build: ./auth-service
+    container_name: apiguard_auth
+    env_file: ./auth-service/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  orchestrator-service:
+    build: ./orchestrator-service
+    container_name: apiguard_orchestrator
+    env_file: ./orchestrator-service/.env
+    environment:
+      DB_HOST: postgres
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  agents-service:
+    build: ./agents-service
+    container_name: apiguard_agents
+    env_file: ./agents-service/.env
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      ORCHESTRATOR_HOST: orchestrator-service
+      ORCHESTRATOR_PORT: 8001
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      orchestrator-service:
+        condition: service_started
+    restart: unless-stopped
+
+  gateway:
+    build: ./gateway
+    container_name: apiguard_gateway
+    env_file: ./gateway/.env
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8000
+      ORCHESTRATOR_SERVICE_URL: http://orchestrator-service:8001
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - orchestrator-service
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
