@@ -70,6 +70,8 @@ services:
       RABBITMQ_HOST: rabbitmq
       ORCHESTRATOR_HOST: orchestrator-service
       ORCHESTRATOR_PORT: 8001
+    volumes:
+      - chromadb_data:/app/data/chromadb
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -94,3 +96,4 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  chromadb_data:

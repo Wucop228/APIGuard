@@ -1,0 +1,92 @@
+[
+  {
+    "id": "fixture-async-client",
+    "text": "Always define the httpx AsyncClient as a reusable pytest fixture with base_url. Use 'async with' and 'yield' to ensure the client is properly closed after tests. Never instantiate AsyncClient inside individual test functions — this wastes connections and makes tests slower. Example fixture:\n@pytest.fixture\nasync def client():\n    async with httpx.AsyncClient(base_url='http://localhost:8000') as c:\n        yield c",
+    "metadata": {"category": "fixtures", "priority": "high"}
+  },
+  {
+    "id": "fixture-no-shared-state",
+    "text": "Each test must be fully independent. Never rely on state created by a previous test (e.g., a user created in test_create_user being available in test_get_user). If a test needs preconditions, set them up in the test itself or in a dedicated fixture. Shared mutable state between tests leads to flaky test suites that fail when run in random order.",
+    "metadata": {"category": "fixtures", "priority": "high"}
+  },
+  {
+    "id": "assertion-status-code",
+    "text": "Every API test must assert the HTTP status code as the first assertion. Use exact status codes (200, 201, 404) instead of ranges. After asserting the status code, assert the response body structure: check required keys exist, check value types, check specific values where deterministic. Example:\nassert response.status_code == 201\ndata = response.json()\nassert 'id' in data\nassert isinstance(data['id'], str)",
+    "metadata": {"category": "assertions", "priority": "high"}
+  },
+  {
+    "id": "assertion-error-responses",
+    "text": "Negative tests must verify the complete error response, not just the status code. Check that the error response contains a 'detail' field (for FastAPI) or appropriate error message field. Verify the error message is meaningful and helps identify the problem. Example for 422:\nassert response.status_code == 422\nerror = response.json()\nassert 'detail' in error\nassert any(e['loc'] for e in error['detail'])",
+    "metadata": {"category": "assertions", "priority": "high"}
+  },
+  {
+    "id": "assertion-response-headers",
+    "text": "When testing APIs that set cookies or custom headers, assert those headers in the response. For authentication endpoints, verify Set-Cookie headers contain expected cookie names. For CORS-enabled endpoints, verify Access-Control headers. Example:\nassert 'set-cookie' in response.headers\nassert response.headers['content-type'] == 'application/json'",
+    "metadata": {"category": "assertions", "priority": "medium"}
+  },
+  {
+    "id": "parametrize-similar-cases",
+    "text": "Use pytest.mark.parametrize when testing the same endpoint with multiple similar inputs. Good candidates: testing multiple invalid inputs for validation, testing multiple valid inputs for the same endpoint, testing different user roles. Keep parametrize readable — use ids parameter for clarity. Example:\n@pytest.mark.parametrize('email,expected_status', [\n    ('valid@test.com', 200),\n    ('invalid', 422),\n    ('', 422),\n], ids=['valid-email', 'invalid-format', 'empty'])\nasync def test_login(client, email, expected_status): ...",
+    "metadata": {"category": "parametrize", "priority": "medium"}
+  },
+  {
+    "id": "parametrize-avoid-overuse",
+    "text": "Do not use pytest.mark.parametrize for fundamentally different test scenarios. If the test logic, assertions, or setup differ significantly between cases, write separate test functions instead. Parametrize is for variations of the same test, not for cramming unrelated tests into one function. Bad: parametrizing positive and negative tests together when they need different assertions.",
+    "metadata": {"category": "parametrize", "priority": "medium"}
+  },
+  {
+    "id": "naming-convention",
+    "text": "Test function names must follow the pattern: test_<action>_<condition>_<expected_result>. Examples: test_create_user_with_valid_data_returns_201, test_login_with_wrong_password_returns_401, test_get_user_without_auth_returns_401. Names should be descriptive enough that a failure message alone tells you what broke. Avoid generic names like test_endpoint_1 or test_positive_case.",
+    "metadata": {"category": "naming", "priority": "medium"}
+  },
+  {
+    "id": "auth-test-patterns",
+    "text": "Every endpoint that requires authentication must have at least these auth tests: 1) Request without any credentials — expect 401. 2) Request with expired token — expect 401. 3) Request with malformed token — expect 401. 4) Request with valid token but wrong user (accessing another user's resource) — expect 403 or 404. These tests verify the security layer independently from business logic.",
+    "metadata": {"category": "auth", "priority": "high"}
+  },
+  {
+    "id": "path-params-edge-cases",
+    "text": "Endpoints with path parameters must have edge case tests for: 1) Non-existent ID (valid format but not in DB) — expect 404. 2) Invalid ID format (e.g., 'abc' when UUID expected) — expect 422 or 400. 3) Empty path parameter — expect 404 or 422. 4) Extremely long path parameter — verify graceful handling. These tests catch missing validation in the route handler.",
+    "metadata": {"category": "edge_cases", "priority": "high"}
+  },
+  {
+    "id": "request-body-validation",
+    "text": "POST/PUT endpoints must test request body validation: 1) Missing required fields — expect 422. 2) Wrong field types (string instead of int) — expect 422. 3) Empty body — expect 422. 4) Extra unexpected fields — verify they are ignored or rejected. 5) Boundary values (empty strings, zero, negative numbers, very long strings). Each validation test should verify the error response includes the field name that failed validation.",
+    "metadata": {"category": "validation", "priority": "high"}
+  },
+  {
+    "id": "async-test-setup",
+    "text": "All async tests must use @pytest.mark.asyncio decorator (or configure asyncio_mode='auto' in pytest config). Import pytest_asyncio for async fixtures if needed. Common mistake: forgetting to await async operations in tests, which causes the test to pass without actually running the assertion. Always verify: is the function awaited? Is the fixture async?",
+    "metadata": {"category": "async", "priority": "high"}
+  },
+  {
+    "id": "no-hardcoded-urls",
+    "text": "Never hardcode base URLs or ports in test functions. Use the client fixture with base_url configured in one place. If tests need different base URLs (e.g., testing multiple services), create separate fixtures. Hardcoded URLs make tests break when the service port changes and make it impossible to run tests against different environments.",
+    "metadata": {"category": "best_practices", "priority": "medium"}
+  },
+  {
+    "id": "test-isolation-cleanup",
+    "text": "If a test creates resources (users, records, files), it should clean them up. Use pytest fixtures with yield for setup/teardown. If cleanup is not possible (e.g., no delete endpoint), document this limitation. Tests that leak state cause other tests to fail unpredictably. For database-backed APIs, consider using transaction rollback in fixtures.",
+    "metadata": {"category": "best_practices", "priority": "medium"}
+  },
+  {
+    "id": "docstring-module-level",
+    "text": "Each test file must have a module-level docstring describing what the file tests. Example: '''Tests for POST /users endpoint. Covers user registration with valid data, duplicate email handling, password validation, and authentication requirements.''' This helps developers quickly understand the test coverage without reading every test function.",
+    "metadata": {"category": "documentation", "priority": "low"}
+  },
+  {
+    "id": "response-time-consideration",
+    "text": "While not strictly required, consider adding timeout expectations for critical endpoints. An API test that takes 30 seconds to complete might indicate a performance problem. Use httpx timeout parameter in the client fixture rather than per-test timeouts. Note: this is secondary to correctness testing.",
+    "metadata": {"category": "performance", "priority": "low"}
+  },
+  {
+    "id": "common-mistake-assert-true",
+    "text": "Common mistake: using bare 'assert response' or 'assert response.json()' — these always pass for non-empty responses. Always assert specific values: assert response.status_code == 200, assert data['name'] == 'expected'. Another mistake: asserting only that a list is not empty (assert len(items) > 0) without checking the contents.",
+    "metadata": {"category": "common_mistakes", "priority": "high"}
+  },
+  {
+    "id": "common-mistake-missing-negative",
+    "text": "Common mistake: writing only positive tests (happy path). Every endpoint needs at least one negative test. If a test file has 5 tests and all expect 200/201, it is incomplete. Negative tests catch real bugs: missing validation, incorrect error handling, security holes. A good ratio is roughly 40% positive, 40% negative, 20% edge cases.",
+    "metadata": {"category": "common_mistakes", "priority": "high"}
+  }
+]

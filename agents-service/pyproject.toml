@@ -7,4 +7,11 @@ dependencies = [
     "aio-pika>=9.5.8",
     "httpx>=0.28",
     "pydantic-settings>=2.12.0",
+    "loguru>=0.7.3",
+    "chromadb>=1.0.0",
+    "langchain-chroma>=0.2.2",
+    "langchain-huggingface>=0.1.2",
+    "langchain-text-splitters>=0.3.7",
+    "sentence-transformers>=3.4.0",
+    "torch>=2.6.0",
 ]

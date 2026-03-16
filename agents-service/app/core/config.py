@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     ORCHESTRATOR_HOST: str = "localhost"
     ORCHESTRATOR_PORT: int = 8001
 
+    CHROMA_PATH: str = "/app/data/chromadb"
+    CHROMA_COLLECTION_NAME: str = "review_knowledge"
+    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    RAG_NUM_RESULTS: int = 3
+    CHUNK_SIZE: int = 512
+    CHUNK_OVERLAP: int = 50
+
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".env"),
         extra="ignore",

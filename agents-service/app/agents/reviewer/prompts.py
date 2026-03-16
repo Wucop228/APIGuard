@@ -47,14 +47,32 @@ CRITICAL: Output ONLY the JSON object. No explanations, no markdown.\
 """
 
 
-def build_user_prompt(analysis: dict, generated_tests: dict) -> str:
+def build_user_prompt(analysis: dict, generated_tests: dict, rag_context: list[str] | None = None) -> str:
     analysis_json = json.dumps(analysis, indent=2, ensure_ascii=False)
     tests_json = json.dumps(generated_tests, indent=2, ensure_ascii=False)
 
-    return (
-        "Review the following generated pytest tests against the original test plan.\n\n"
-        f"Original Test Plan:\n{analysis_json}\n\n"
-        f"Generated Tests:\n{tests_json}\n\n"
+    parts = [
+        "Review the following generated pytest tests against the original test plan.",
+        "",
+        f"Original Test Plan:\n{analysis_json}",
+        "",
+        f"Generated Tests:\n{tests_json}",
+    ]
+
+    if rag_context:
+        context_block = "\n---\n".join(rag_context)
+        parts.append("")
+        parts.append(
+            "Reference Materials — use these best practices and patterns "
+            "to evaluate and improve the tests:\n"
+            f"{context_block}"
+        )
+
+    parts.append("")
+    parts.append(
         "Evaluate each test file, identify issues, suggest improvements, "
-        "and provide improved test code following your review criteria."
+        "and provide improved test code following your review criteria "
+        "and the reference materials above."
     )
+
+    return "\n".join(parts)

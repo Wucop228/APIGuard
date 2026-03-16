@@ -5,6 +5,7 @@ from app.agents.registry import register_all
 from app.broker.connection import connect_broker, disconnect_broker
 from app.broker.consumer import start_consuming
 from app.callback.client import init_http_client, close_http_client
+from app.rag.store import generate_chroma_db
 
 
 async def main():
@@ -12,6 +13,9 @@ async def main():
 
     await init_http_client()
     register_all()
+
+    generate_chroma_db()
+
     await connect_broker()
     await start_consuming()
 
